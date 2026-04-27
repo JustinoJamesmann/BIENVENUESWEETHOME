@@ -2,14 +2,14 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Firebase configuration - REPLACE WITH YOUR OWN CREDENTIALS
+// Firebase configuration
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAYHI21fqcOoiMQr947R6wRC3Dr6GXNJ7s",
+  authDomain: "bienvenue-sweet-home-98a55.firebaseapp.com",
+  projectId: "bienvenue-sweet-home-98a55",
+  storageBucket: "bienvenue-sweet-home-98a55.firebasestorage.app",
+  messagingSenderId: "766265384360",
+  appId: "1:766265384360:web:30d78e37aa9c06ba76519d"
 };
 
 // Initialize Firebase
