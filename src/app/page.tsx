@@ -1,7 +1,17 @@
 "use client";
 
 import { Product, Order, Page, User } from "./types";
-import { loadProducts, saveProducts, loadOrders, saveOrders, login, logout, getCurrentUser } from "./store";
+import { 
+  loadProducts, 
+  saveProducts, 
+  loadOrders, 
+  saveOrder, 
+  login as firebaseLogin, 
+  logout as firebaseLogout, 
+  onAuthChange,
+  subscribeToProducts,
+  subscribeToOrders 
+} from "./firestoreStore";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import Inventory from "./components/Inventory";
@@ -15,41 +25,50 @@ export default function Home() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loginUsername, setLoginUsername] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    setProducts(loadProducts());
-    setOrders(loadOrders());
-    setCurrentUser(getCurrentUser());
-    setLoaded(true);
+    // Subscribe to auth changes
+    const unsubscribeAuth = onAuthChange((user) => {
+      setCurrentUser(user);
+      setLoaded(true);
+    });
+
+    // Subscribe to products
+    const unsubscribeProducts = subscribeToProducts((products) => {
+      setProducts(products);
+    });
+
+    // Subscribe to orders
+    const unsubscribeOrders = subscribeToOrders((orders) => {
+      setOrders(orders);
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeProducts();
+      unsubscribeOrders();
+    };
   }, []);
 
-  useEffect(() => {
-    if (loaded) saveProducts(products);
-  }, [products, loaded]);
-
-  useEffect(() => {
-    if (loaded) saveOrders(orders);
-  }, [orders, loaded]);
-
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    const user = login(loginUsername, loginPassword);
+    const user = await firebaseLogin(loginEmail, loginPassword);
     if (user) {
       setCurrentUser(user);
       setLoginError("");
-      setLoginUsername("");
+      setLoginEmail("");
       setLoginPassword("");
     } else {
-      setLoginError("Invalid username or password");
+      setLoginError("Invalid email or password");
     }
   }
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await firebaseLogout();
     setCurrentUser(null);
   }
 
@@ -71,11 +90,11 @@ export default function Home() {
           <h1 className="text-3xl font-bold gradient-text mb-6 text-center">⚡ BIENVENUE SWEET HOME</h1>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="text-xs text-white/40 mb-1 block">Username</label>
+              <label className="text-xs text-white/40 mb-1 block">Email</label>
               <input
-                type="text"
-                value={loginUsername}
-                onChange={(e) => setLoginUsername(e.target.value)}
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
                 required
               />
             </div>
