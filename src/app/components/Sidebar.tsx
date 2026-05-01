@@ -1,6 +1,7 @@
 "use client";
 
 import { Page, User } from "../types";
+import { UserButton } from "@clerk/nextjs";
 
 const navItems: { id: Page; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
@@ -38,12 +39,9 @@ export default function Sidebar({ currentPage, onNavigate, currentUser, onLogout
           <div className="text-sm text-white font-medium capitalize">{currentUser.username}</div>
           <div className="text-xs text-white/80 capitalize">{currentUser.role}</div>
         </div>
-        <button
-          onClick={onLogout}
-          className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors cursor-pointer"
-        >
-          Logout
-        </button>
+        <div className="flex justify-center">
+          <UserButton />
+        </div>
       </div>
     </aside>
   );
