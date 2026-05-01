@@ -3,6 +3,7 @@
 import { Product, Order, Page } from "../types";
 import { useState, useEffect } from "react";
 import { Line, Doughnut } from "react-chartjs-2";
+import { saveProducts, saveOrders } from "../store";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -37,6 +38,46 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
   const pendingOrders = orders.filter(o => o.status === "pending").length;
   const totalValue = products.reduce((sum, p) => sum + p.price * p.quantity, 0);
   const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+  // Export data function
+  function handleExportData() {
+    const data = {
+      products,
+      orders,
+      exportDate: new Date().toISOString()
+    };
+    const dataStr = JSON.stringify(data, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `bienvenue-data-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Import data function
+  function handleImportData(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        if (data.products && data.orders) {
+          saveProducts(data.products);
+          saveOrders(data.orders);
+          alert('Data imported successfully! Refresh the page to see changes.');
+        } else {
+          alert('Invalid data format');
+        }
+      } catch (error) {
+        alert('Error reading file');
+      }
+    };
+    reader.readAsText(file);
+  }
 
   const statusCounts = {
     pending: orders.filter(o => o.status === "pending").length,
@@ -298,14 +339,31 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
           <div>
           <p className="mt-1"><span className="text-2xl font-bold" style={{ color: '#6ba557' }}>Bienvenue sweet home</span></p>
           <p className="text-white/40 text-xs mt-1">here&apos;s what&apos;s happening with your business today .</p>
+          </div>
         </div>
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={handleExportData}
+            className="px-4 py-2 rounded-xl bg-[#6ba557] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            Export Data
+          </button>
+          <label className="px-4 py-2 rounded-xl bg-neon-purple text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">
+            Import Data
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImportData}
+              className="hidden"
+            />
+          </label>
+          <button
+            onClick={() => setShowCalendar(true)}
+            className="text-xs text-white/20 hover:text-neon-purple transition-colors cursor-pointer"
+          >
+            {selectedDate.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+          </button>
         </div>
-        <button
-          onClick={() => setShowCalendar(true)}
-          className="text-xs text-white/20 hover:text-neon-purple transition-colors cursor-pointer"
-        >
-          {selectedDate.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-        </button>
       </div>
 
       {/* KPI Cards */}

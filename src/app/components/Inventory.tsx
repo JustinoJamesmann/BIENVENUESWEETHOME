@@ -1,7 +1,7 @@
 "use client";
 
 import { Product, User } from "../types";
-import { loadCategories, addProduct, updateProduct, deleteProduct } from "../firestoreStore";
+import { loadCategories, saveCategories } from "../store";
 import { useState, useEffect } from "react";
 
 export default function Inventory({ products, setProducts, currentUser }: { products: Product[]; setProducts: (p: Product[]) => void; currentUser: User }) {
@@ -14,8 +14,12 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
   const [showStockModal, setShowStockModal] = useState(false);
 
   useEffect(() => {
-    loadCategories().then(setCategories);
+    setCategories(loadCategories());
   }, []);
+
+  useEffect(() => {
+    saveCategories(categories);
+  }, [categories]);
 
   const filterCategories = ["all", ...categories];
 
@@ -29,20 +33,20 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
   const totalUnits = filtered.reduce((sum, p) => sum + p.quantity, 0);
   const lowStockCount = filtered.filter(p => p.quantity <= 10).length;
 
-  async function handleSave(product: Omit<Product, "id"> & { id?: string }) {
+  function handleSave(product: Omit<Product, "id"> & { id?: string }) {
     if (product.id) {
-      await updateProduct(product.id, product as Product);
+      setProducts(products.map(p => p.id === product.id ? product as Product : p));
     } else {
       const newProduct = { ...product, id: Date.now().toString() } as Product;
-      await addProduct(newProduct);
+      setProducts([...products, newProduct]);
     }
     setShowForm(false);
     setEditingProduct(null);
   }
 
-  async function handleDelete(id: string) {
+  function handleDelete(id: string) {
     if (confirm("Delete this product?")) {
-      await deleteProduct(id);
+      setProducts(products.filter(p => p.id !== id));
     }
   }
 

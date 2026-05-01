@@ -1,7 +1,6 @@
 "use client";
 
 import { Product, Order, User, OrderItem } from "../types";
-import { updateOrder, deleteOrder as deleteOrderFromFirestore, saveOrder, updateProduct } from "../firestoreStore";
 import { useState, useEffect, useRef } from "react";
 
 export default function Sales({ orders, setOrders, products, setProducts, currentUser }: { orders: Order[]; setOrders: (o: Order[]) => void; products: Product[]; setProducts: (p: Product[]) => void; currentUser: User }) {
@@ -26,11 +25,11 @@ export default function Sales({ orders, setOrders, products, setProducts, curren
     cancelled: orders.filter(o => o.status === "cancelled").length,
   };
 
-  async function handleStatusChange(orderId: string, newStatus: Order["status"]) {
-    await updateOrder(orderId, { status: newStatus });
+  function handleStatusChange(orderId: string, newStatus: Order["status"]) {
+    setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
   }
 
-  async function handleDeleteOrder(orderId: string) {
+  function handleDeleteOrder(orderId: string) {
     if (confirm("Are you sure you want to delete this order? Stock will be restored.")) {
       const orderToDelete = orders.find(o => o.id === orderId);
       if (orderToDelete) {
@@ -40,11 +39,11 @@ export default function Sales({ orders, setOrders, products, setProducts, curren
           const idx = updatedProducts.findIndex(p => p.id === item.productId);
           if (idx >= 0) {
             updatedProducts[idx] = { ...updatedProducts[idx], quantity: updatedProducts[idx].quantity + item.quantity };
-            updateProduct(updatedProducts[idx].id, { quantity: updatedProducts[idx].quantity });
           }
         });
+        setProducts(updatedProducts);
       }
-      await deleteOrderFromFirestore(orderId);
+      setOrders(orders.filter(o => o.id !== orderId));
     }
   }
 
@@ -130,18 +129,19 @@ export default function Sales({ orders, setOrders, products, setProducts, curren
     }
   }
 
-  async function handleCreateOrder(order: Omit<Order, "id">) {
-    const newOrder = { ...order, id: `ORD-${Date.now()}` };
-    await saveOrder(newOrder as Order);
+  function handleCreateOrder(order: Omit<Order, "id">) {
+    const newOrder = { ...order, id: `ORD-${String(orders.length + 1).padStart(3, "0")}` };
+    setOrders([...orders, newOrder]);
 
     // Deduct stock
+    const updatedProducts = [...products];
     order.items.forEach(item => {
-      const product = products.find(p => p.id === item.productId);
-      if (product) {
-        const newQuantity = Math.max(0, product.quantity - item.quantity);
-        updateProduct(product.id, { quantity: newQuantity });
+      const idx = updatedProducts.findIndex(p => p.id === item.productId);
+      if (idx >= 0) {
+        updatedProducts[idx] = { ...updatedProducts[idx], quantity: Math.max(0, updatedProducts[idx].quantity - item.quantity) };
       }
     });
+    setProducts(updatedProducts);
     setShowForm(false);
   }
 
