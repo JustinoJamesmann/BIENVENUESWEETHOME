@@ -42,3 +42,6 @@ next-env.d.ts
 
 # old folder
 genz2026/
+
+# clerk configuration (can include secrets)
+/.clerk/
