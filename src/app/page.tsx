@@ -58,11 +58,12 @@ export default function Home() {
     );
   }
 
-  // Create user object from Clerk
+  // Create user object from Clerk with role based on email
+  const email = user?.primaryEmailAddress?.emailAddress || "";
   const currentUser: User = {
     id: user?.id || "1",
-    username: user?.primaryEmailAddress?.emailAddress || "admin",
-    role: "admin"
+    username: email,
+    role: email === "bienvenuesweethome@gmail.com" ? "admin" : "worker"
   };
 
   return (
