@@ -17,7 +17,7 @@ export default function Report({ orders, products, currentUser }: { orders: Orde
       @media print {
         aside, .no-print { display: none !important; }
         main { margin-left: 0 !important; padding: 20px !important; }
-        .glass { background: white !important; border: 1px solid #ddd !important; color: black !important; }
+        .glass { background: white !important; border: none !important; color: black !important; box-shadow: none !important; }
         .neon-glow-purple, .neon-glow-green, .neon-glow-cyan, .neon-glow-pink { box-shadow: none !important; }
         .gradient-text { background: none !important; -webkit-text-fill-color: black !important; }
         body { background: white !important; }
@@ -29,6 +29,12 @@ export default function Report({ orders, products, currentUser }: { orders: Orde
         .print-header { display: block !important; text-align: center; margin-bottom: 30px; }
         .print-header img { max-width: 150px; height: auto; filter: brightness(0); }
         .print-header h1 { font-size: 24px; font-weight: bold; margin: 10px 0; }
+        .report-summary, .stock-note, .screen-only { display: none !important; }
+        .report-table { width: 100% !important; border-collapse: collapse !important; font-size: 11px !important; }
+        .report-table th, .report-table td { border: 1px solid #999 !important; padding: 7px !important; color: #000 !important; }
+        .report-table th { background: #eaeaea !important; font-weight: bold !important; text-align: left !important; }
+        .report-table td.number, .report-table th.number { text-align: right !important; }
+        .report-table tfoot td { font-weight: bold !important; background: #f2f2f2 !important; }
       }
       @media screen {
         .print-header { display: none !important; }
@@ -40,19 +46,29 @@ export default function Report({ orders, products, currentUser }: { orders: Orde
     }
   }
 
-  const filteredOrders = orders.filter(order => order.date === selectedDate);
-  const salesCount = filteredOrders.length;
-  const totalRevenue = filteredOrders.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + o.total, 0);
-  const cancelledCount = filteredOrders.filter(o => o.status === "cancelled").length;
-
-  // Group orders by status
-  const statusBreakdown = {
-    pending: filteredOrders.filter(o => o.status === "pending").length,
-    confirmed: filteredOrders.filter(o => o.status === "confirmed").length,
-    shipped: filteredOrders.filter(o => o.status === "shipped").length,
-    delivered: filteredOrders.filter(o => o.status === "delivered").length,
-    cancelled: filteredOrders.filter(o => o.status === "cancelled").length,
-  };
+  const filteredOrders = orders.filter(order => order.date === selectedDate && order.status !== "cancelled");
+  const reportRows = Object.values(filteredOrders.reduce((acc, order) => {
+    order.items.forEach(item => {
+      const product = products.find(p => p.id === item.productId);
+      const buyingPrice = product?.buyingPrice || 0;
+      const existing = acc[item.productId] || {
+        productName: item.productName,
+        quantity: 0,
+        benefits: 0,
+        revenue: 0,
+        stockLeft: product?.quantity || 0,
+      };
+      existing.quantity += item.quantity;
+      existing.revenue += item.total;
+      existing.benefits += (item.price - buyingPrice) * item.quantity;
+      existing.stockLeft = product?.quantity || 0;
+      acc[item.productId] = existing;
+    });
+    return acc;
+  }, {} as Record<string, { productName: string; quantity: number; benefits: number; revenue: number; stockLeft: number }>));
+  const totalQuantity = reportRows.reduce((sum, row) => sum + row.quantity, 0);
+  const totalBenefits = reportRows.reduce((sum, row) => sum + row.benefits, 0);
+  const totalRevenue = reportRows.reduce((sum, row) => sum + row.revenue, 0);
 
   return (
     <div className="animate-fade-in-up space-y-6">
@@ -82,96 +98,51 @@ export default function Report({ orders, products, currentUser }: { orders: Orde
         </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="glass p-4 text-center neon-glow-purple">
-          <div className="text-2xl font-bold text-neon-purple">{salesCount}</div>
-          <div className="text-xs text-white/40 mt-1">Total Orders</div>
-        </div>
-        <div className="glass p-4 text-center neon-glow-green">
-          <div className="text-2xl font-bold text-neon-green">Ar {totalRevenue.toFixed(2)}</div>
-          <div className="text-xs text-white/40 mt-1">Revenue</div>
-        </div>
-        <div className="glass p-4 text-center neon-glow-cyan">
-          <div className="text-2xl font-bold text-neon-cyan">{salesCount - cancelledCount}</div>
-          <div className="text-xs text-white/40 mt-1">Completed</div>
-        </div>
-        <div className="glass p-4 text-center neon-glow-pink">
-          <div className="text-2xl font-bold text-neon-pink">{cancelledCount}</div>
-          <div className="text-xs text-white/40 mt-1">Cancelled</div>
-        </div>
-      </div>
-
-      {/* Status Breakdown */}
       <div className="glass p-6">
-        <h2 className="text-lg font-semibold text-white/80 mb-4">Order Status Breakdown</h2>
-        <div className="grid grid-cols-5 gap-4">
-          <div className="bg-white/5 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-white/40">{statusBreakdown.pending}</div>
-            <div className="text-xs text-white/30 mt-1">Pending</div>
-          </div>
-          <div className="bg-white/5 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-neon-cyan">{statusBreakdown.confirmed}</div>
-            <div className="text-xs text-white/30 mt-1">Confirmed</div>
-          </div>
-          <div className="bg-white/5 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-neon-purple">{statusBreakdown.shipped}</div>
-            <div className="text-xs text-white/30 mt-1">Shipped</div>
-          </div>
-          <div className="bg-white/5 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-neon-green">{statusBreakdown.delivered}</div>
-            <div className="text-xs text-white/30 mt-1">Delivered</div>
-          </div>
-          <div className="bg-white/5 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-neon-pink">{statusBreakdown.cancelled}</div>
-            <div className="text-xs text-white/30 mt-1">Cancelled</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Orders Table */}
-      <div className="glass p-6">
-        <h2 className="text-lg font-semibold text-white/80 mb-4">Orders for {selectedDate}</h2>
-        {filteredOrders.length === 0 ? (
-          <div className="text-center py-12 text-white/30">No orders found for this date</div>
+        <h2 className="text-lg font-semibold text-white/80 mb-4">Sales Report for {selectedDate}</h2>
+        {reportRows.length === 0 ? (
+          <div className="text-center py-12 text-white/30">No sales found for this date</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full report-table">
               <thead>
                 <tr className="text-white/30 text-xs border-b border-white/5">
-                  <th className="text-left py-3 px-4">Order ID</th>
-                  <th className="text-left py-3 px-4">Customer</th>
-                  <th className="text-left py-3 px-4">Items</th>
-                  <th className="text-right py-3 px-4">Total</th>
-                  <th className="text-center py-3 px-4">Status</th>
+                  <th className="text-left py-3 px-4">Product Name</th>
+                  <th className="text-right py-3 px-4 number">Quantity</th>
+                  <th className="text-right py-3 px-4 number">Benefits</th>
+                  <th className="text-right py-3 px-4 number">Revenue</th>
+                  <th className="text-right py-3 px-4 number">Stock Left</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredOrders.map((order) => (
-                  <tr key={order.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                    <td className="py-3 px-4 text-neon-cyan font-mono text-xs">{order.id}</td>
-                    <td className="py-3 px-4 text-white/70">{order.customer}</td>
-                    <td className="py-3 px-4 text-white/50">{order.items.length} items</td>
-                    <td className="py-3 px-4 text-right text-neon-green font-medium">Ar {order.total.toFixed(2)}</td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={`badge-${order.status} px-2 py-0.5 rounded-full text-xs capitalize`}>
-                        {order.status}
-                      </span>
-                    </td>
+                {reportRows.map((row) => (
+                  <tr key={row.productName} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <td className="py-3 px-4 text-white/70">{row.productName}</td>
+                    <td className="py-3 px-4 text-right text-white/70 number">{row.quantity}</td>
+                    <td className="py-3 px-4 text-right text-neon-purple font-medium number">Ar {row.benefits.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-right text-neon-green font-medium number">Ar {row.revenue.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-right text-white/70 number">{row.stockLeft}</td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr>
+                  <td className="py-3 px-4 text-white/80">Total</td>
+                  <td className="py-3 px-4 text-right text-white/80 number">{totalQuantity}</td>
+                  <td className="py-3 px-4 text-right text-neon-purple number">Ar {totalBenefits.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-right text-neon-green number">Ar {totalRevenue.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-right text-white/80 number">-</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
       </div>
 
-      {/* Stock Arrivals Note */}
-      <div className="glass p-6">
+      <div className="glass p-6 stock-note">
         <h2 className="text-lg font-semibold text-white/80 mb-4">Stock Arrivals</h2>
         <div className="text-white/50 text-sm">
-          <p>Stock arrivals are tracked through the "Add Stock" feature in Inventory.</p>
-          <p className="mt-2">To view stock arrival history, check the Inventory page for quantity changes over time.</p>
+          <p>Stock Left uses the current inventory quantity, including old stock and any newly added stock.</p>
         </div>
       </div>
     </div>

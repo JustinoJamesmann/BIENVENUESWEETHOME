@@ -1,7 +1,7 @@
 "use client";
 
 import { Product, Order, User, OrderItem } from "../types";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 
 export default function Sales({ orders, setOrders, products, setProducts, currentUser }: { orders: Order[]; setOrders: (o: Order[]) => void; products: Product[]; setProducts: (p: Product[]) => void; currentUser: User }) {
   const [search, setSearch] = useState("");
@@ -28,6 +28,10 @@ export default function Sales({ orders, setOrders, products, setProducts, curren
   function handleStatusChange(orderId: string, newStatus: Order["status"]) {
     setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
   }
+
+  const availableStatuses = currentUser.role === "worker" 
+    ? ["pending", "confirmed"] 
+    : ["pending", "confirmed", "shipped", "delivered", "cancelled"];
 
   function handleDeleteOrder(orderId: string) {
     if (confirm("Are you sure you want to delete this order? Stock will be restored.")) {
@@ -147,6 +151,14 @@ export default function Sales({ orders, setOrders, products, setProducts, curren
 
   return (
     <div className="animate-fade-in-up space-y-6">
+      {showForm ? (
+        <CreateOrderForm
+          products={products}
+          onSave={handleCreateOrder}
+          onClose={() => setShowForm(false)}
+        />
+      ) : (
+        <>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold gradient-text">Sales</h1>
@@ -233,7 +245,7 @@ export default function Sales({ orders, setOrders, products, setProducts, curren
                       onChange={(e) => handleStatusChange(order.id, e.target.value as Order["status"])}
                       className={`badge-${order.status} px-2 py-0.5 rounded-full text-xs capitalize !p-1 !border-0`}
                     >
-                      {["pending", "confirmed", "shipped", "delivered", "cancelled"].map(s => (
+                      {availableStatuses.map(s => (
                         <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
                       ))}
                     </select>
@@ -258,13 +270,7 @@ export default function Sales({ orders, setOrders, products, setProducts, curren
         )}
       </div>
 
-      {/* Create Order Modal */}
-      {showForm && (
-        <CreateOrderForm
-          products={products}
-          onSave={handleCreateOrder}
-          onClose={() => setShowForm(false)}
-        />
+        </>
       )}
 
       {/* View Order Modal */}
@@ -283,16 +289,21 @@ function CreateOrderForm({ products, onSave, onClose }: { products: Product[]; o
   const [selectedProduct, setSelectedProduct] = useState("");
   const [qty, setQty] = useState(1);
   const [productSearch, setProductSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [deliveryCost, setDeliveryCost] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const filteredProducts = products.filter(p =>
-    p.quantity > 0 && (
-      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-      p.sku.toLowerCase().includes(productSearch.toLowerCase())
-    )
-  );
+  const availableProducts = useMemo(() => products.filter(p => p.quantity > 0), [products]);
+  const categories = useMemo(() => ["all", ...Array.from(new Set(availableProducts.map(p => p.category))).sort()], [availableProducts]);
+  const selectedProductData = useMemo(() => products.find(p => p.id === selectedProduct), [products, selectedProduct]);
+  const filteredProducts = useMemo(() => {
+    const searchTerm = productSearch.trim().toLowerCase();
+    return availableProducts
+      .filter(p => categoryFilter === "all" || p.category === categoryFilter)
+      .filter(p => !searchTerm || p.name.toLowerCase().includes(searchTerm) || p.sku.toLowerCase().includes(searchTerm) || p.category.toLowerCase().includes(searchTerm))
+      .slice(0, 80);
+  }, [availableProducts, categoryFilter, productSearch]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -308,18 +319,21 @@ function CreateOrderForm({ products, onSave, onClose }: { products: Product[]; o
     const product = products.find(p => p.id === selectedProduct);
     if (!product) return;
     const existing = items.find(i => i.productId === product.id);
+    const currentQuantity = existing?.quantity || 0;
+    const quantityToAdd = Math.min(qty, product.quantity - currentQuantity);
+    if (quantityToAdd <= 0) return;
     if (existing) {
       setItems(items.map(i => i.productId === product.id
-        ? { ...i, quantity: i.quantity + qty, total: (i.quantity + qty) * i.price }
+        ? { ...i, quantity: i.quantity + quantityToAdd, total: (i.quantity + quantityToAdd) * i.price }
         : i
       ));
     } else {
       setItems([...items, {
         productId: product.id,
         productName: product.name,
-        quantity: qty,
+        quantity: quantityToAdd,
         price: product.price,
-        total: qty * product.price,
+        total: quantityToAdd * product.price,
       }]);
     }
     setSelectedProduct("");
@@ -354,9 +368,18 @@ function CreateOrderForm({ products, onSave, onClose }: { products: Product[]; o
   const total = subtotal + deliveryCost;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50" onClick={onClose}>
-      <div className="glass p-8 w-full max-w-2xl neon-glow-pink max-h-[90vh] overflow-y-auto bg-[#0a0a1a]" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-xl font-bold gradient-text mb-6">New Order</h2>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold gradient-text">New Order</h1>
+          <p className="text-white/40 text-sm mt-1">Create a sale and select products easily</p>
+        </div>
+        <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm hover:bg-white/10 transition-colors cursor-pointer">
+          Back to Sales
+        </button>
+      </div>
+
+      <div className="glass p-8 neon-glow-pink bg-[#0a0a1a]">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-xs text-white/40 mb-1 block">Customer Name</label>
@@ -376,34 +399,87 @@ function CreateOrderForm({ products, onSave, onClose }: { products: Product[]; o
           {/* Add items */}
           <div>
             <label className="text-xs text-white/40 mb-1 block">Add Items</label>
-            <div className="flex gap-2">
-              <div className="flex-1 relative" ref={dropdownRef}>
-                <input
-                  type="text"
-                  placeholder="Search product name or SKU..."
-                  value={productSearch}
-                  onChange={(e) => { setProductSearch(e.target.value); setShowProductDropdown(true); }}
-                  onFocus={() => setShowProductDropdown(true)}
-                />
-                {showProductDropdown && filteredProducts.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1a2e] border border-white/10 rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
-                    {filteredProducts.map(p => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => { setSelectedProduct(p.id); setProductSearch(p.name); setShowProductDropdown(false); }}
-                        className="w-full px-4 py-3 text-left text-sm text-white/70 hover:bg-white/5 cursor-pointer"
-                      >
-                        {p.name} (Ar {p.price}) — {p.quantity} in stock
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-2">
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => { setCategoryFilter(e.target.value); setProductSearch(""); setSelectedProduct(""); setShowProductDropdown(true); }}
+                  className="w-full"
+                >
+                  {categories.map(category => (
+                    <option key={category} value={category}>{category === "all" ? "All Categories" : category}</option>
+                  ))}
+                </select>
+                <div className="relative" ref={dropdownRef}>
+                  <input
+                    type="text"
+                    placeholder="Search product name, SKU, or category..."
+                    value={productSearch}
+                    onChange={(e) => { setProductSearch(e.target.value); setSelectedProduct(""); setShowProductDropdown(true); }}
+                    onFocus={() => setShowProductDropdown(true)}
+                  />
+                  {showProductDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1a2e] border border-white/10 rounded-xl overflow-hidden z-50 max-h-80 overflow-y-auto">
+                      <div className="px-4 py-2 text-xs text-white/30 border-b border-white/10">
+                        Showing {filteredProducts.length} products {categoryFilter !== "all" ? `in ${categoryFilter}` : "from all categories"}
+                      </div>
+                      {filteredProducts.length > 0 ? filteredProducts.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => { setSelectedProduct(p.id); setProductSearch(p.name); setShowProductDropdown(false); }}
+                          className="w-full px-4 py-3 text-left hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-b-0"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm text-white/80 font-medium truncate">{p.name}</div>
+                              <div className="text-xs text-white/35 truncate">{p.sku} · {p.category}</div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <div className="text-sm text-neon-green">Ar {p.price.toFixed(2)}</div>
+                              <div className="text-xs text-white/35">{p.quantity} stock</div>
+                            </div>
+                          </div>
+                        </button>
+                      )) : (
+                        <div className="px-4 py-6 text-center text-sm text-white/30">No product found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-              <input type="number" min={1} value={qty} onChange={(e) => setQty(parseInt(e.target.value) || 1)} className="w-20" />
-              <button type="button" onClick={addItem} className="px-4 py-2 rounded-xl bg-neon-purple/20 text-neon-purple text-sm hover:bg-neon-purple/30 transition-colors cursor-pointer">
-                Add
-              </button>
+
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {categories.slice(0, 20).map(category => (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => { setCategoryFilter(category); setProductSearch(""); setSelectedProduct(""); setShowProductDropdown(true); }}
+                    className={`shrink-0 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                      categoryFilter === category ? "bg-neon-purple/30 text-neon-purple" : "bg-white/5 text-white/50 hover:bg-white/10"
+                    }`}
+                  >
+                    {category === "all" ? "All" : category}
+                  </button>
+                ))}
+              </div>
+
+              {selectedProductData && (
+                <div className="rounded-xl border border-neon-purple/20 bg-neon-purple/10 p-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm text-white/80 font-medium">{selectedProductData.name}</div>
+                    <div className="text-xs text-white/40">{selectedProductData.sku} · {selectedProductData.category} · {selectedProductData.quantity} in stock</div>
+                  </div>
+                  <div className="text-sm text-neon-green shrink-0">Ar {selectedProductData.price.toFixed(2)}</div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <input type="number" min={1} max={selectedProductData?.quantity || undefined} value={qty} onChange={(e) => setQty(parseInt(e.target.value) || 1)} className="w-24" />
+                <button type="button" onClick={addItem} disabled={!selectedProduct} className="flex-1 px-4 py-2 rounded-xl bg-neon-purple/20 text-neon-purple text-sm hover:bg-neon-purple/30 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
+                  Add Selected Item
+                </button>
+              </div>
             </div>
           </div>
 

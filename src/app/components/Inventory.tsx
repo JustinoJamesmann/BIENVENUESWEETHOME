@@ -1,7 +1,6 @@
 "use client";
 
 import { Product, User } from "../types";
-import { loadCategories, saveCategories } from "../store";
 import { useState, useEffect } from "react";
 
 export default function Inventory({ products, setProducts, currentUser }: { products: Product[]; setProducts: (p: Product[]) => void; currentUser: User }) {
@@ -14,11 +13,25 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
   const [showStockModal, setShowStockModal] = useState(false);
 
   useEffect(() => {
-    setCategories(loadCategories());
+    async function loadCategories() {
+      const response = await fetch("/api/categories");
+      const data = await response.json();
+      setCategories(data.categories || []);
+    }
+    loadCategories();
   }, []);
 
   useEffect(() => {
-    saveCategories(categories);
+    async function saveCategories() {
+      if (categories.length > 0) {
+        await fetch("/api/categories", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categories }),
+        });
+      }
+    }
+    saveCategories();
   }, [categories]);
 
   const filterCategories = ["all", ...categories];
@@ -31,7 +44,7 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
 
   const totalValue = filtered.reduce((sum, p) => sum + p.price * p.quantity, 0);
   const totalUnits = filtered.reduce((sum, p) => sum + p.quantity, 0);
-  const lowStockCount = filtered.filter(p => p.quantity <= 10).length;
+  const lowStockCount = filtered.filter(p => p.quantity > 0 && p.quantity <= 5).length;
 
   function handleSave(product: Omit<Product, "id"> & { id?: string }) {
     if (product.id) {
@@ -53,6 +66,17 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
   function handleEdit(product: Product) {
     setEditingProduct(product);
     setShowForm(true);
+  }
+
+  if (showForm) {
+    return (
+      <ProductForm
+        product={editingProduct}
+        categories={categories}
+        onSave={handleSave}
+        onClose={() => { setShowForm(false); setEditingProduct(null); }}
+      />
+    );
   }
 
   return (
@@ -129,7 +153,8 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
                 <th className="text-left py-3 px-4">Product</th>
                 <th className="text-left py-3 px-4">SKU</th>
                 <th className="text-left py-3 px-4">Category</th>
-                <th className="text-right py-3 px-4">Price</th>
+                {currentUser.role === "admin" && <th className="text-right py-3 px-4">Buying Price</th>}
+                <th className="text-right py-3 px-4">Selling Price</th>
                 <th className="text-right py-3 px-4">Stock</th>
                 <th className="text-center py-3 px-4">Status</th>
                 <th className="text-center py-3 px-4">Actions</th>
@@ -137,12 +162,26 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
             </thead>
             <tbody>
               {filtered.map((product) => {
-                const isLow = product.quantity <= 10;
+                const isLow = product.quantity > 0 && product.quantity <= 5;
                 return (
                   <tr key={product.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                    <td className="py-3 px-4 text-white/80 font-medium">{product.name}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                          {product.image ? (
+                            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-lg text-white/30">📦</span>
+                          )}
+                        </div>
+                        <span className="text-white/80 font-medium">{product.name}</span>
+                      </div>
+                    </td>
                     <td className="py-3 px-4 text-neon-cyan font-mono text-xs">{product.sku}</td>
                     <td className="py-3 px-4 text-white/50">{product.category}</td>
+                    {currentUser.role === "admin" && (
+                      <td className="py-3 px-4 text-right text-white/50">Ar {(product.buyingPrice || 0).toFixed(2)}</td>
+                    )}
                     <td className="py-3 px-4 text-right text-white/70">Ar {product.price.toFixed(2)}</td>
                     <td className="py-3 px-4 text-right">
                       <span className={isLow ? "text-neon-orange font-bold" : "text-white/70"}>
@@ -181,15 +220,6 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
         </div>
       </div>
 
-      {/* Add/Edit Form Modal */}
-      {showForm && (
-        <ProductForm
-          product={editingProduct}
-          categories={categories}
-          onSave={handleSave}
-          onClose={() => { setShowForm(false); setEditingProduct(null); }}
-        />
-      )}
       {/* Category Management Modal */}
       {showCategoryModal && (
         <CategoryModal
@@ -215,8 +245,10 @@ function ProductForm({ product, categories, onSave, onClose }: { product: Produc
     name: product?.name || "",
     sku: product?.sku || "",
     category: product?.category || (categories[0] || ""),
+    buyingPrice: product?.buyingPrice || 0,
     price: product?.price || 0,
     quantity: product?.quantity || 0,
+    image: product?.image || "",
   });
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -225,11 +257,32 @@ function ProductForm({ product, categories, onSave, onClose }: { product: Produc
     onSave({ ...form, id: product?.id });
   }
 
+  function handleImageImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setForm(current => ({ ...current, image: reader.result as string }));
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50" onClick={onClose}>
-      <div className="glass p-8 w-full max-w-lg neon-glow-purple bg-[#0a0a1a]" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-xl font-bold gradient-text mb-6">{product ? "Edit Product" : "Add Product"}</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="animate-fade-in-up space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold gradient-text">{product ? "Edit Product" : "Add Product"}</h1>
+          <p className="text-white/40 text-sm mt-1">{product ? "Update product details and pricing" : "Create a new product in inventory"}</p>
+        </div>
+        <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm hover:bg-white/10 transition-colors cursor-pointer">
+          ← Back to Inventory
+        </button>
+      </div>
+
+      <div className="glass p-8 w-full neon-glow-purple bg-[#0a0a1a]">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="text-center">
             <label className="text-xs text-white/40 mb-1 block">Product Name</label>
             <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Product name" className="w-full" />
@@ -239,7 +292,24 @@ function ProductForm({ product, categories, onSave, onClose }: { product: Produc
             <input type="text" required value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="SKU-001" className="w-full" />
           </div>
           <div className="text-center">
-            <label className="text-xs text-white/40 mb-1 block">Price (Ar)</label>
+            <label className="text-xs text-white/40 mb-1 block">Product Image</label>
+            <div className="flex items-center gap-3">
+              <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                {form.image ? (
+                  <img src={form.image} alt="Product preview" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-2xl text-white/30">📦</span>
+                )}
+              </div>
+              <input type="file" accept="image/*" onChange={handleImageImport} className="w-full" />
+            </div>
+          </div>
+          <div className="text-center">
+            <label className="text-xs text-white/40 mb-1 block">Buying Price (Ar)</label>
+            <input type="number" step="0.01" required value={form.buyingPrice} onChange={(e) => setForm({ ...form, buyingPrice: parseFloat(e.target.value) || 0 })} className="w-full" />
+          </div>
+          <div className="text-center">
+            <label className="text-xs text-white/40 mb-1 block">Selling Price (Ar)</label>
             <input type="number" step="0.01" required value={form.price} onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) || 0 })} className="w-full" />
           </div>
           <div className="text-center relative">
@@ -275,7 +345,7 @@ function ProductForm({ product, categories, onSave, onClose }: { product: Produc
             <label className="text-xs text-white/40 mb-1 block">Quantity</label>
             <input type="number" required value={form.quantity} onChange={(e) => setForm({ ...form, quantity: parseInt(e.target.value) || 0 })} className="w-full" />
           </div>
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-2 lg:col-span-2">
             <button type="submit" className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-neon-purple to-neon-cyan text-white font-medium text-sm hover:opacity-90 transition-opacity cursor-pointer">
               {product ? "Update" : "Create"} Product
             </button>

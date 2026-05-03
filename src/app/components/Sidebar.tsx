@@ -1,7 +1,6 @@
 "use client";
 
 import { Page, User } from "../types";
-import { UserButton, useAuth } from "@clerk/nextjs";
 
 const navItems: { id: Page; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
@@ -11,8 +10,6 @@ const navItems: { id: Page; label: string }[] = [
 ];
 
 export default function Sidebar({ currentPage, onNavigate, currentUser, onLogout }: { currentPage: Page; onNavigate: (p: Page) => void; currentUser: User; onLogout: () => void }) {
-  const { signOut } = useAuth();
-
   return (
     <aside className="fixed left-0 top-0 h-full w-64 flex flex-col z-50" style={{ background: 'rgba(14, 22, 24, 0.85)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderRight: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', margin: '16px 0 16px 16px', height: 'calc(100% - 32px)' }}>
       <div className="px-6 border-b border-white/5 flex items-center justify-center">
@@ -38,14 +35,11 @@ export default function Sidebar({ currentPage, onNavigate, currentUser, onLogout
       <div className="p-6 border-t border-white/5 space-y-3">
         <div className="glass p-4">
           <div className="text-xs text-white/70 mb-1">Logged in as</div>
-          <div className="text-sm text-white font-medium capitalize">{currentUser.username}</div>
+          <div className="text-sm text-white font-medium truncate normal-case" title={currentUser.username}>{currentUser.username}</div>
           <div className="text-xs text-white/80 capitalize">{currentUser.role}</div>
         </div>
-        <div className="flex justify-center">
-          <UserButton />
-        </div>
         <button
-          onClick={() => signOut(() => window.location.href = '/')}
+          onClick={onLogout}
           className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors cursor-pointer"
         >
           Sign Out

@@ -28,15 +28,21 @@ ChartJS.register(
   ArcElement
 );
 
+function formatAriary(value: number) {
+  if (Math.abs(value) >= 1000000) {
+    return `Ar ${(value / 1000000).toFixed(2)}M`;
+  }
+  return `Ar ${Math.round(value).toLocaleString("en-US")}`;
+}
+
 export default function Dashboard({ products, orders, onNavigate }: { products: Product[]; orders: Order[]; onNavigate: (p: Page) => void }) {
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [timePeriod, setTimePeriod] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
   const totalRevenue = orders.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + (o.total - (o.deliveryCost || 0)), 0);
   const totalOrders = orders.length;
-  const pendingOrders = orders.filter(o => o.status === "pending").length;
   const totalValue = products.reduce((sum, p) => sum + p.price * p.quantity, 0);
-  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+  const totalBenefits = products.reduce((sum, p) => sum + (p.price - (p.buyingPrice || 0)) * p.quantity, 0);
 
   const statusCounts = {
     pending: orders.filter(o => o.status === "pending").length,
@@ -120,8 +126,8 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
   })();
 
   // Stock status data
-  const stockInStock = products.filter(p => p.quantity > 10).length;
-  const stockLowStock = products.filter(p => p.quantity > 0 && p.quantity <= 10).length;
+  const stockInStock = products.filter(p => p.quantity > 5).length;
+  const stockLowStock = products.filter(p => p.quantity > 0 && p.quantity <= 5).length;
   const stockOutOfStock = products.filter(p => p.quantity === 0).length;
   const stockTotalItems = products.length;
   const inStockPercent = stockTotalItems > 0 ? ((stockInStock / stockTotalItems) * 100).toFixed(1) : 0;
@@ -129,11 +135,10 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
   const outOfStockPercent = stockTotalItems > 0 ? ((stockOutOfStock / stockTotalItems) * 100).toFixed(1) : 0;
 
   const kpis = [
-    { label: "Revenue", value: `Ar ${totalRevenue.toFixed(2)}`, color: "", accent: "text-neon-green" },
-    { label: "Orders", value: totalOrders.toString(), color: "", accent: "text-neon-cyan" },
-    { label: "Avg Order", value: `Ar ${avgOrderValue.toFixed(2)}`, color: "", accent: "text-neon-purple" },
-    { label: "Pending", value: pendingOrders.toString(), color: "", accent: "text-neon-orange" },
-    { label: "Low Stock", value: stockLowStock.toString(), color: "", accent: "text-neon-pink" },
+    { label: "Wealth", value: formatAriary(totalValue), color: "", accent: "text-neon-orange" },
+    { label: "Benefits", value: formatAriary(totalBenefits), color: "", accent: "text-neon-purple" },
+    { label: "Revenue", value: formatAriary(totalRevenue), color: "", accent: "text-neon-green" },
+    { label: "Order", value: totalOrders.toString(), color: "", accent: "text-neon-cyan" },
     { label: "Total Items", value: stockTotalItems.toString(), color: "", accent: "text-neon-cyan" },
   ];
 
@@ -185,28 +190,33 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
     labels: salesTrendData.labels,
     datasets: [
       {
-        label: "Sales",
+        label: "Sales Trend",
         data: salesTrendData.data,
-        borderColor: "#6ba557",
+        borderColor: "#7ebb57",
         backgroundColor: (context: any) => {
-          const ctx = context.chart.ctx;
-          const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-          gradient.addColorStop(0, "rgba(107, 165, 87, 0.3)");
-          gradient.addColorStop(0.5, "rgba(107, 165, 87, 0.1)");
+          const { chart } = context;
+          const { ctx, chartArea } = chart;
+          if (!chartArea) return "rgba(126, 187, 87, 0.18)";
+          const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          gradient.addColorStop(0, "rgba(126, 187, 87, 0.42)");
+          gradient.addColorStop(0.55, "rgba(126, 187, 87, 0.14)");
           gradient.addColorStop(1, "rgba(107, 165, 87, 0)");
           return gradient;
         },
         borderWidth: 3,
-        tension: 0.4,
+        tension: 0.45,
+        borderCapStyle: "round" as const,
+        borderJoinStyle: "round" as const,
         fill: true,
-        pointBackgroundColor: "#6ba557",
+        pointBackgroundColor: "#7ebb57",
         pointBorderColor: "#ffffff",
         pointBorderWidth: 2,
-        pointHoverBackgroundColor: "#6ba557",
+        pointHoverBackgroundColor: "#7ebb57",
         pointHoverBorderColor: "#ffffff",
         pointHoverBorderWidth: 3,
         pointRadius: 0,
-        pointHoverRadius: 8,
+        pointHitRadius: 18,
+        pointHoverRadius: 6,
       },
     ],
   };
@@ -219,13 +229,15 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
         display: false,
       },
       tooltip: {
-        backgroundColor: "rgba(14, 22, 24, 0.95)",
+        backgroundColor: "rgba(26, 29, 31, 0.96)",
         titleColor: "#ffffff",
-        bodyColor: "#6ba557",
-        borderColor: "rgba(107, 165, 87, 0.3)",
+        bodyColor: "#7ebb57",
+        borderColor: "rgba(126, 187, 87, 0.35)",
         borderWidth: 1,
         padding: 16,
         displayColors: false,
+        cornerRadius: 12,
+        caretPadding: 10,
         titleFont: {
           size: 13,
           weight: "bold" as const,
@@ -238,11 +250,11 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
           label: (context: any) => {
             const value = context.raw;
             if (value >= 1000000) {
-              return `Ar ${(value / 1000000).toFixed(2)}M`;
+              return `${(value / 1000000).toFixed(2)}M`;
             } else if (value >= 1000) {
-              return `Ar ${(value / 1000).toFixed(2)}k`;
+              return `${(value / 1000).toFixed(0)}k`;
             }
-            return `Ar ${value.toFixed(2)}`;
+            return `${value}`;
           },
         },
       },
@@ -254,7 +266,8 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
           drawBorder: false,
         },
         ticks: {
-          color: "rgba(255, 255, 255, 0.4)",
+          color: "rgba(224, 224, 224, 0.45)",
+          padding: 10,
           font: {
             size: 12,
             weight: "normal" as const,
@@ -263,25 +276,26 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
       },
       y: {
         grid: {
-          color: "rgba(255, 255, 255, 0.03)",
+          color: "rgba(255, 255, 255, 0.05)",
           drawBorder: false,
         },
         ticks: {
-          color: "rgba(255, 255, 255, 0.4)",
+          color: "rgba(224, 224, 224, 0.45)",
+          padding: 10,
           font: {
             size: 12,
             weight: "normal" as const,
           },
           callback: (value: any) => {
             if (value >= 1000000) {
-              return `Ar ${(value / 1000000).toFixed(1)}M`;
+              return `${(value / 1000000).toFixed(1)}M`;
             } else if (value >= 1000) {
-              return `Ar ${(value / 1000).toFixed(0)}k`;
+              return `${(value / 1000).toFixed(0)}k`;
             }
-            return `Ar ${value}`;
+            return `${value}`;
           },
         },
-        max: 2000000,
+        beginAtZero: true,
       },
     },
     interaction: {
@@ -309,17 +323,17 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         {kpis.map((kpi) => (
-          <div key={kpi.label} className={`glass p-4 ${kpi.color} transition-all duration-300 hover:scale-105`}>
+          <div key={kpi.label} className={`glass p-5 min-w-0 ${kpi.color} transition-all duration-300 hover:scale-105`}>
             <div className="text-sm font-medium text-white/60 mb-1">{kpi.label}</div>
-            <div className={`text-xl font-bold ${kpi.accent}`}>{kpi.value}</div>
+            <div className={`text-2xl font-bold ${kpi.accent} whitespace-nowrap`}>{kpi.value}</div>
           </div>
         ))}
       </div>
 
       {/* Sales Trend Chart */}
-      <div className="glass p-6">
+      <div className="glass p-6" style={{ background: "#1a1d1f" }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white/80">Sales Trend</h2>
           <div className="flex gap-2">
@@ -338,7 +352,7 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
             ))}
           </div>
         </div>
-        <div className="h-64">
+        <div className="h-72">
           <Line data={chartData} options={chartOptions} />
         </div>
       </div>
@@ -507,7 +521,7 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
         <div className="glass p-6">
           <h2 className="text-lg font-semibold text-neon-orange mb-3">⚠️ Low Stock Alert</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {products.filter(p => p.quantity <= 10).map(p => (
+            {products.filter(p => p.quantity > 0 && p.quantity <= 5).map(p => (
               <div key={p.id} className="flex items-center justify-between bg-white/5 rounded-xl p-3">
                 <div>
                   <div className="text-sm text-white/70">{p.name}</div>
@@ -515,7 +529,7 @@ export default function Dashboard({ products, orders, onNavigate }: { products: 
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-bold text-neon-orange">{p.quantity}</div>
-                  <div className="text-xs text-white/30">min: 10</div>
+                  <div className="text-xs text-white/30">min: 5</div>
                 </div>
               </div>
             ))}

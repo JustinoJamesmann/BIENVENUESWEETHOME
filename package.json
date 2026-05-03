@@ -9,7 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.3.0",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.105.1",
     "chart.js": "^4.5.1",
     "lucide-react": "^1.11.0",
     "next": "16.2.4",
