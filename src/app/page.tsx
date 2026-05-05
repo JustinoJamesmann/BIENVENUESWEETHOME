@@ -18,6 +18,7 @@ export default function Home() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [dataLoading, setDataLoading] = useState(false);
 
   useEffect(() => {
     async function bootstrap() {
@@ -35,6 +36,7 @@ export default function Home() {
   }, []);
 
   async function refreshData() {
+    setDataLoading(true);
     const [productsResponse, ordersResponse] = await Promise.all([
       fetch("/api/products"),
       fetch("/api/orders"),
@@ -43,6 +45,7 @@ export default function Home() {
     const ordersData = await ordersResponse.json();
     setProducts(productsData.products || []);
     setOrders(ordersData.orders || []);
+    setDataLoading(false);
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -55,11 +58,10 @@ export default function Home() {
     const data = await response.json();
     if (response.ok && data.user) {
       setCurrentUser(data.user);
-      setProducts(data.products || []);
-      setOrders(data.orders || []);
       setLoginError("");
       setLoginUsername("");
       setLoginPassword("");
+      refreshData();
     } else {
       setLoginError(data.error || "Invalid username or password");
     }
@@ -179,6 +181,11 @@ export default function Home() {
     <div className="min-h-screen flex" style={{ background: '#0e1619' }}>
       <Sidebar currentPage={page} onNavigate={setPage} currentUser={currentUser} onLogout={handleLogout} />
       <main className="flex-1 ml-64 p-6 overflow-auto min-h-screen">
+        {dataLoading && (
+          <div className="fixed top-4 right-4 z-50 glass px-4 py-2 text-xs text-white/60">
+            Loading data...
+          </div>
+        )}
         {page === "dashboard" && <Dashboard products={products} orders={orders} onNavigate={setPage} />}
         {page === "inventory" && <Inventory products={products} setProducts={handleSetProducts} currentUser={currentUser} />}
         {page === "sales" && <Sales orders={orders} setOrders={handleSetOrders} products={products} setProducts={handleSetProducts} currentUser={currentUser} />}
