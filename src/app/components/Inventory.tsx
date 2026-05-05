@@ -1,7 +1,7 @@
 "use client";
 
 import { Product, User } from "../types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function Inventory({ products, setProducts, currentUser }: { products: Product[]; setProducts: (p: Product[]) => void; currentUser: User }) {
   const [search, setSearch] = useState("");
@@ -11,19 +11,27 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [showStockModal, setShowStockModal] = useState(false);
+  const categoriesLoaded = useRef(false);
+  const skipNextCategorySave = useRef(true);
 
   useEffect(() => {
     async function loadCategories() {
       const response = await fetch("/api/categories");
       const data = await response.json();
       setCategories(data.categories || []);
+      categoriesLoaded.current = true;
     }
     loadCategories();
   }, []);
 
   useEffect(() => {
     async function saveCategories() {
-      if (categories.length > 0) {
+      if (!categoriesLoaded.current) return;
+      if (skipNextCategorySave.current) {
+        skipNextCategorySave.current = false;
+        return;
+      }
+      if (categoriesLoaded.current && categories.length > 0 && currentUser.role === "admin") {
         await fetch("/api/categories", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -32,7 +40,7 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
       }
     }
     saveCategories();
-  }, [categories]);
+  }, [categories, currentUser.role]);
 
   const filterCategories = ["all", ...categories];
 
@@ -153,6 +161,7 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
                 <th className="text-left py-3 px-4">Product</th>
                 <th className="text-left py-3 px-4">SKU</th>
                 <th className="text-left py-3 px-4">Category</th>
+                <th className="text-left py-3 px-4">Dimension</th>
                 {currentUser.role === "admin" && <th className="text-right py-3 px-4">Buying Price</th>}
                 <th className="text-right py-3 px-4">Selling Price</th>
                 <th className="text-right py-3 px-4">Stock</th>
@@ -179,6 +188,9 @@ export default function Inventory({ products, setProducts, currentUser }: { prod
                     </td>
                     <td className="py-3 px-4 text-neon-cyan font-mono text-xs">{product.sku}</td>
                     <td className="py-3 px-4 text-white/50">{product.category}</td>
+                    <td className="py-3 px-4 text-white/50">
+                      {product.widthCm && product.heightCm ? `${product.widthCm}Cm X ${product.heightCm}Cm` : "-"}
+                    </td>
                     {currentUser.role === "admin" && (
                       <td className="py-3 px-4 text-right text-white/50">Ar {(product.buyingPrice || 0).toFixed(2)}</td>
                     )}
@@ -249,6 +261,8 @@ function ProductForm({ product, categories, onSave, onClose }: { product: Produc
     price: product?.price || 0,
     quantity: product?.quantity || 0,
     image: product?.image || "",
+    widthCm: product?.widthCm || 0,
+    heightCm: product?.heightCm || 0,
   });
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -344,6 +358,17 @@ function ProductForm({ product, categories, onSave, onClose }: { product: Produc
           <div className="text-center">
             <label className="text-xs text-white/40 mb-1 block">Quantity</label>
             <input type="number" required value={form.quantity} onChange={(e) => setForm({ ...form, quantity: parseInt(e.target.value) || 0 })} className="w-full" />
+          </div>
+          <div className="lg:col-span-2">
+            <label className="text-xs text-white/40 mb-2 block text-center">Dimension</label>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <input type="number" min="0" step="0.01" value={form.widthCm} onChange={(e) => setForm({ ...form, widthCm: parseFloat(e.target.value) || 0 })} placeholder="Width" className="w-full text-center" />
+              <span className="text-white/50 text-sm font-medium">Cm X</span>
+              <input type="number" min="0" step="0.01" value={form.heightCm} onChange={(e) => setForm({ ...form, heightCm: parseFloat(e.target.value) || 0 })} placeholder="Height" className="w-full text-center" />
+            </div>
+            <div className="text-center text-xs text-white/30 mt-2">
+              {form.widthCm || form.heightCm ? `${form.widthCm || 0}Cm X ${form.heightCm || 0}Cm` : "Width Cm X Height Cm"}
+            </div>
           </div>
           <div className="flex gap-3 pt-2 lg:col-span-2">
             <button type="submit" className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-neon-purple to-neon-cyan text-white font-medium text-sm hover:opacity-90 transition-opacity cursor-pointer">

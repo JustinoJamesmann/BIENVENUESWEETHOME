@@ -7,6 +7,8 @@ export interface Product {
   price: number;
   quantity: number;
   image?: string;
+  widthCm?: number;
+  heightCm?: number;
 }
 
 export interface OrderItem {

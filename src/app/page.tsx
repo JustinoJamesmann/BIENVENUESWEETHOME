@@ -22,20 +22,11 @@ export default function Home() {
   useEffect(() => {
     async function bootstrap() {
       try {
-        const sessionResponse = await fetch("/api/auth/session");
-        const sessionData = await sessionResponse.json();
-        setCurrentUser(sessionData.user);
-
-        if (sessionData.user) {
-          const [productsResponse, ordersResponse] = await Promise.all([
-            fetch("/api/products"),
-            fetch("/api/orders"),
-          ]);
-          const productsData = await productsResponse.json();
-          const ordersData = await ordersResponse.json();
-          setProducts(productsData.products || []);
-          setOrders(ordersData.orders || []);
-        }
+        const response = await fetch("/api/bootstrap");
+        const data = await response.json();
+        setCurrentUser(data.user);
+        setProducts(data.products || []);
+        setOrders(data.orders || []);
       } finally {
         setLoaded(true);
       }
@@ -64,10 +55,11 @@ export default function Home() {
     const data = await response.json();
     if (response.ok && data.user) {
       setCurrentUser(data.user);
+      setProducts(data.products || []);
+      setOrders(data.orders || []);
       setLoginError("");
       setLoginUsername("");
       setLoginPassword("");
-      await refreshData();
     } else {
       setLoginError(data.error || "Invalid username or password");
     }
