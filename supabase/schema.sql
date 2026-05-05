@@ -18,7 +18,7 @@ create table public.categories (
 );
 
 create table public.products (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key default gen_random_uuid()::text,
   name text not null,
   sku text not null unique,
   category text not null,
@@ -50,7 +50,7 @@ create table public.orders (
 create table public.order_items (
   id uuid primary key default gen_random_uuid(),
   order_id text not null references public.orders(id) on delete cascade,
-  product_id uuid references public.products(id),
+  product_id text references public.products(id),
   product_name text not null,
   quantity integer not null check (quantity > 0),
   price numeric(12, 2) not null default 0,

@@ -13,6 +13,4 @@ alter table public.order_items
 add constraint order_items_product_id_fkey
 foreign key (product_id) references public.products(id);
 
-alter table public.products
-add column if not exists width_cm numeric(10, 2),
-add column if not exists height_cm numeric(10, 2);
+notify pgrst, 'reload schema';

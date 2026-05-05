@@ -10,6 +10,8 @@ export function mapProduct(row: any): Product {
     price: Number(row.selling_price || 0),
     quantity: Number(row.quantity || 0),
     image: row.image || undefined,
+    widthCm: row.width_cm == null ? undefined : Number(row.width_cm),
+    heightCm: row.height_cm == null ? undefined : Number(row.height_cm),
   };
 }
 
@@ -44,6 +46,8 @@ export function toProductRow(product: Omit<Product, "id"> & { id?: string }, use
     selling_price: product.price,
     quantity: product.quantity,
     image: product.image || null,
+    width_cm: product.widthCm || null,
+    height_cm: product.heightCm || null,
     updated_by: userId,
     ...(product.id ? {} : { created_by: userId }),
   };
